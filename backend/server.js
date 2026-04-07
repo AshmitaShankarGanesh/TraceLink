@@ -9,6 +9,7 @@ const claimRoutes = require('./routes/claimRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 
 const app = express();
+let dbReady = false;
 
 app.use(
   cors({
@@ -20,7 +21,11 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.get('/health', (req, res) => {
-  res.status(200).json({ success: true, message: 'TraceLink API is running' });
+  res.status(200).json({
+    success: true,
+    message: 'TraceLink API is running',
+    dbConnected: dbReady,
+  });
 });
 
 app.use('/api/auth', authRoutes);
@@ -62,22 +67,34 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
-const start = async () => {
+const bootstrap = async () => {
   if (!process.env.MONGO_URI) {
     console.error('MONGO_URI is not defined in environment');
-    process.exit(1);
+    return;
   }
   if (!process.env.JWT_SECRET) {
     console.error('JWT_SECRET is not defined in environment');
-    process.exit(1);
+    return;
   }
 
-  await connectDB();
+  try {
+    await connectDB();
+    dbReady = true;
+  } catch (error) {
+    dbReady = false;
+    console.error('Database bootstrap failed:', error.message);
+  }
+};
 
+// Initialize DB for both local and serverless environments.
+bootstrap();
+
+// Only bind to a port when running locally.
+if (process.env.NODE_ENV !== 'production') {
   app.listen(PORT, () => {
     console.log(`Server listening on port ${PORT}`);
   });
-};
+}
 
-start();
+module.exports = app;
 
